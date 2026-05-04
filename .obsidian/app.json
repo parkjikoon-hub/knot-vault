@@ -7,7 +7,7 @@
   "showLineNumber": false,
   "strictLineBreaks": false,
   "spellcheck": false,
-  "spellcheckLanguages": ["ko"],
+  "spellcheckLanguages": null,
   "readableLineLength": true,
   "attachmentFolderPath": "References"
 }
