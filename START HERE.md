@@ -80,11 +80,11 @@ KNOT-vault를 열면 AI 플러그인이 이미 들어있습니다.
 
 | 플러그인 이름 | 용도 | 필요한 것 |
 |--------------|------|-----------|
-| **Claude Obsidian** | Claude AI 연동 | Claude Code 설치 필요 |
+| **Claude Obsidian** | Claude AI 연동 | API 키 필요 |
 | **Gemini Obsidian** | Google Gemini 연동 | API 키 필요 (무료) |
 | **Codex Obsidian** | OpenAI Codex 연동 | Codex CLI 설치 필요 |
 | **Dataview** | 노트 자동 목록 | 없음 |
-| **Templater** | 노트 템플릿 | 없음 |
+| **Templater** | 노트 템플릿 자동 입력 | 없음 |
 
 > 처음에는 **Gemini Obsidian** 하나만 켜고 시작하는 것을 추천합니다.
 > Gemini는 무료로 바로 사용할 수 있어서 가장 쉽습니다.
@@ -122,11 +122,10 @@ KNOT-vault를 열면 AI 플러그인이 이미 들어있습니다.
 
 ### 🤖 Claude 연결하기
 
-Claude는 Claude Code CLI가 설치되어 있어야 합니다.
-
-1. **https://claude.ai/code** 접속 → 설치 안내 따라하기
-2. 설치 완료 후 옵시디언에서 **Claude Obsidian** 플러그인 활성화
-3. 왼쪽 사이드바 **Claude 아이콘** 클릭
+1. **https://console.anthropic.com** 접속 → 회원가입
+2. API Keys → Create Key → 키 복사
+3. 옵시디언 설정 → Claude Obsidian → API 키 입력
+4. 왼쪽 사이드바 **🤖 아이콘** 클릭
 
 > 자세한 설치 방법: [[Guides/Claude-Obsidian-가이드]]
 
@@ -134,10 +133,8 @@ Claude는 Claude Code CLI가 설치되어 있어야 합니다.
 
 ### 💻 Codex 연결하기
 
-Codex는 Node.js와 Codex CLI가 필요합니다.
-
 1. **https://nodejs.org** 접속 → LTS 버전 다운로드 및 설치
-2. 설치 완료 후 윈도우 검색창에서 **"PowerShell"** 검색 → 실행
+2. 윈도우 검색창에서 **"PowerShell"** 검색 → 실행
 3. 아래 명령어 입력 후 Enter:
    ```
    npm install -g @openai/codex@latest
@@ -145,6 +142,27 @@ Codex는 Node.js와 Codex CLI가 필요합니다.
 4. 설치 완료 후 옵시디언에서 **Codex Obsidian** 플러그인 활성화
 
 > 자세한 설치 방법: [[Guides/Codex-Obsidian-가이드]]
+
+---
+
+## 6단계. 템플릿으로 노트 만들기
+
+설치가 끝났으면 템플릿을 사용해 노트를 만들어보세요.
+KNOT-vault에는 **3가지 템플릿**이 미리 준비되어 있습니다.
+
+| 템플릿 | 언제 사용 |
+|--------|----------|
+| 📝 일반 노트 | 아이디어, 메모, 공부 내용 |
+| 🗣️ 회의·대화 기록 | 회의 내용, AI 대화 정리 |
+| 🗂️ 프로젝트 기획서 | 새 프로젝트 시작할 때 |
+
+**템플릿 사용법:**
+1. 새 노트 만들기 (Ctrl + N)
+2. **Ctrl + P** 누르기
+3. **"Templater: Insert Template"** 검색
+4. 원하는 템플릿 선택 → 양식 자동 완성!
+
+> 자세한 설명: [[Guides/템플릿-사용-가이드]]
 
 ---
 
@@ -162,25 +180,47 @@ A. AI와 대화하다가 "저장해줘"라고 입력하면 `AI/Gemini/` (또는 
 **Q. 인터넷이 없어도 사용할 수 있나요?**
 A. 옵시디언 자체는 오프라인 사용 가능하지만, AI 기능은 인터넷 연결이 필요합니다.
 
+**Q. 템플릿은 어떻게 수정하나요?**
+A. `Settings/Templates/` 폴더에서 파일을 열어 직접 편집하면 됩니다.
+
 ---
 
 ## 폴더 구조 설명
 
 ```
 KNOT-vault/
-├── Inbox/        새로 들어온 정보 임시 보관 (나중에 정리할 것들)
+├── Inbox/        새로 들어온 정보 임시 보관
 ├── Notes/        내가 직접 쓴 노트
 ├── AI/
-│   ├── Claude/   Claude와의 대화가 저장되는 곳
-│   ├── Gemini/   Gemini와의 대화가 저장되는 곳
-│   └── Codex/    Codex와의 대화가 저장되는 곳
-├── References/   참고자료, 웹에서 저장한 글
-├── Projects/     진행 중인 프로젝트 관련 노트
-├── Outputs/      완성된 기획서, 보고서, 결과물
-├── Guides/       설치 및 사용 방법 안내 (이 폴더)
-└── Settings/     템플릿 등 설정 파일
+│   ├── Claude/   Claude와의 대화 노트
+│   ├── Gemini/   Gemini와의 대화 노트
+│   └── Codex/    Codex와의 대화 노트
+├── References/   참고자료, 웹 클리핑
+├── Projects/     진행 중인 프로젝트
+├── Outputs/      완성된 기획서·보고서·결과물
+├── Guides/       설치·사용 방법 안내 (이 폴더)
+└── Settings/
+    └── Templates/ 노트 템플릿 3가지
 ```
 
 ---
 
-더 궁금한 점이 있으면 [[Guides/Gemini-Obsidian-가이드]] 를 참고하세요.
+## 설치 완료 후 → 바로 여기로!
+
+> 설치가 끝났다면 아래 가이드를 가장 먼저 읽어보세요.
+> 5분 안에 AI와 첫 노트를 만들 수 있습니다.
+
+👉 **[[Guides/첫날-5분-실습]]** ← 여기서 시작하세요!
+
+---
+
+## 더 알아보기
+
+| 가이드 | 내용 |
+|--------|------|
+| [[Guides/첫날-5분-실습]] | ⭐ 설치 후 첫 번째로 읽을 것 |
+| [[Guides/템플릿-사용-가이드]] | 템플릿으로 노트 만드는 방법 |
+| [[Guides/Gemini-Obsidian-가이드]] | Gemini 상세 사용법 |
+| [[Guides/Claude-Obsidian-가이드]] | Claude 상세 사용법 |
+| [[Guides/Codex-Obsidian-가이드]] | Codex 상세 사용법 |
+| [[Guides/Obsidian-Code-설치가이드]] | Claude Code 설치 가이드 |
