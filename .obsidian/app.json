@@ -8,7 +8,7 @@
   "strictLineBreaks": false,
   "spellcheck": false,
   "spellcheckLanguages": null,
-  "readableLineLength": true,
+  "readableLineLength": false,
   "attachmentFolderPath": "References",
   "promptDelete": false
 }
