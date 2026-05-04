@@ -1,0 +1,10 @@
+{
+  "id": "codex-obsidian",
+  "name": "Codex Obsidian",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Use OpenAI Codex CLI directly inside Obsidian. Chat, generate notes, run commands, and search related notes with Obsidian CLI integration.",
+  "author": "KNOT",
+  "authorUrl": "https://github.com/knot-hub/codex-obsidian",
+  "isDesktopOnly": true
+}

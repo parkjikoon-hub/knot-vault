@@ -1,0 +1,10 @@
+# 옵시디언 개인 설정 (기기마다 다름)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.obsidian/plugins/*/data.json
+
+# 시스템 파일
+.DS_Store
+Thumbs.db
+*.local

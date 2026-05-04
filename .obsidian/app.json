@@ -1,0 +1,13 @@
+{
+  "legacyEditor": false,
+  "livePreview": true,
+  "defaultViewMode": "source",
+  "foldHeading": true,
+  "foldIndent": true,
+  "showLineNumber": false,
+  "strictLineBreaks": false,
+  "spellcheck": false,
+  "spellcheckLanguages": ["ko"],
+  "readableLineLength": true,
+  "attachmentFolderPath": "References"
+}
