@@ -16,6 +16,7 @@ const PLUGIN_VERSION = '1.0.0';
 
 const DEFAULT_SETTINGS = {
   codexPath: 'codex',
+  openaiApiKey: '',
   model: 'gpt-4o',
   approvalMode: 'suggest',
   saveFolder: 'Codex Notes',
@@ -216,6 +217,27 @@ class CodexObsidianView extends ItemView {
     titleRow.createEl('span', { text: 'Codex Obsidian' });
     titleRow.createEl('span', { text: `v${PLUGIN_VERSION}`, cls: 'codex-version-badge' });
 
+    // 모델 선택 드롭다운
+    const modelSelect = titleRow.createEl('select', { cls: 'codex-model-select' });
+    [
+      { value: 'gpt-4o', label: 'gpt-4o' },
+      { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
+      { value: 'o3', label: 'o3' },
+      { value: 'o4-mini', label: 'o4-mini' },
+    ].forEach(({ value, label }) => {
+      const opt = modelSelect.createEl('option', { value, text: label });
+      if (value === this.plugin.settings.model) opt.selected = true;
+    });
+    modelSelect.onchange = async () => {
+      this.plugin.settings.model = modelSelect.value;
+      await this.plugin.saveSettings();
+      this.updateContextInfo();
+    };
+
+    // 컨텍스트 토큰 표시
+    this.contextInfoEl = titleRow.createEl('span', { cls: 'codex-context-info' });
+    this.updateContextInfo();
+
     // 상태 표시
     const statusBar = header.createDiv('codex-status-bar');
     statusBar.createEl('span', {
@@ -241,18 +263,30 @@ class CodexObsidianView extends ItemView {
 
     // 툴바
     const toolbar = root.createDiv('codex-toolbar');
+    const SVGS = {
+      summary: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+      search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+      code: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+      plan: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>',
+      meeting: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      save: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+      stop: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>',
+      reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>',
+    };
     [
-      { icon: '📄', label: '현재 노트 분석', fn: () => this.quickSend('현재 열린 노트를 분석해서 핵심 내용과 개선점을 알려줘.') },
-      { icon: '🔍', label: '관련 노트 검색', fn: () => this.searchRelatedNotes() },
-      { icon: '💻', label: '코드 생성', fn: () => this.quickSend('현재 노트 내용을 바탕으로 필요한 코드나 스크립트를 생성해줘.') },
-      { icon: '📋', label: '기획서 변환', fn: () => this.quickSend('지금까지 대화를 체계적인 기획서 형식으로 정리해줘.') },
-      { icon: '📝', label: '회의록 작성', fn: () => this.quickSend('대화 내용을 회의록 형식으로 정리해줘.') },
-      { icon: '💾', label: '노트 저장', fn: () => this.quickSend('지금까지 대화를 옵시디언 노트로 저장해줘. 마크다운 형식으로 잘 정리해서.') },
-      { icon: '⏹', label: '중지', fn: () => this.stopGeneration() },
-      { icon: '🔄', label: '초기화', fn: () => this.clearChat() },
-    ].forEach(({ icon, label, fn }) => {
+      { svg: SVGS.summary, label: '현재 노트 분석', fn: () => this.quickSend('현재 열린 노트를 분석해서 핵심 내용과 개선점을 알려줘.') },
+      { svg: SVGS.search, label: '관련 노트 검색', fn: () => this.searchRelatedNotes() },
+      { svg: SVGS.code, label: '코드 생성', fn: () => this.quickSend('현재 노트 내용을 바탕으로 필요한 코드나 스크립트를 생성해줘.') },
+      { svg: SVGS.plan, label: '기획서 변환', fn: () => this.quickSend('지금까지 대화를 체계적인 기획서 형식으로 정리해줘.') },
+      { svg: SVGS.meeting, label: '회의록 작성', fn: () => this.quickSend('대화 내용을 회의록 형식으로 정리해줘.') },
+      { svg: SVGS.save, label: '노트 저장', fn: () => this.quickSend('지금까지 대화를 옵시디언 노트로 저장해줘. 마크다운 형식으로 잘 정리해서.') },
+      { svg: SVGS.stop, label: '중지', fn: () => this.stopGeneration() },
+      { svg: SVGS.reset, label: '초기화', fn: () => this.clearChat() },
+    ].forEach(({ svg, label, fn }) => {
       const btn = toolbar.createEl('button', { cls: 'codex-toolbar-btn' });
-      btn.createEl('span', { text: icon + ' ' + label });
+      const iconEl = btn.createSpan();
+      iconEl.innerHTML = svg;
+      btn.createEl('span', { text: label });
       btn.onclick = fn;
     });
 
@@ -279,22 +313,18 @@ class CodexObsidianView extends ItemView {
   }
 
   showEmpty() {
+    this.messagesEl.empty();
     const el = this.messagesEl.createDiv('codex-empty');
-    el.createDiv({ cls: 'codex-empty-icon', text: '💻' });
-    el.createEl('p', { text: 'Codex Obsidian에 오신 것을 환영합니다!' });
-    if (!this.codexAvailable) {
-      const w = el.createEl('p', { text: '⚠️ Codex CLI가 설치되어 있지 않습니다.' });
-      w.style.color = 'var(--color-red)';
-      el.createEl('p', { text: '터미널에서: npm install -g @openai/codex@latest' });
-      el.createEl('p', { text: '설치 후 설정에서 Codex 경로를 확인하세요.' });
-    } else {
-      el.createEl('p', { text: `✅ Codex ${this.codexVersion} 연결됨` });
-    }
-    el.createEl('p', {
-      text: this.cliAvailable
-        ? '✅ Obsidian CLI 연결됨 — 스마트 노트 검색·저장 사용 가능'
-        : '💡 Obsidian CLI 설치 시 스마트 노트 검색·저장 기능이 활성화됩니다.'
-    });
+    const logoEl = el.createDiv({ cls: 'codex-empty-logo' });
+    logoEl.innerHTML = '<svg width="64" height="64" viewBox="0 0 64 64"><defs><linearGradient id="c" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#10a37f"/><stop offset="100%" style="stop-color:#1a73e8"/></linearGradient></defs><circle cx="32" cy="32" r="32" fill="url(#c)"/><text x="32" y="42" text-anchor="middle" font-size="28" fill="white">X</text></svg>';
+    el.createEl('p', { text: 'Codex Obsidian에 오신 것을 환영합니다!', cls: 'codex-welcome-text' });
+  }
+
+  updateContextInfo() {
+    if (!this.contextInfoEl) return;
+    const totalChars = this.messages.reduce((sum, m) => sum + m.content.length, 0);
+    const tokens = Math.round(totalChars / 4);
+    this.contextInfoEl.textContent = `컨텍스트: ~${tokens.toLocaleString()} 토큰`;
   }
 
   updateContextBar() {
@@ -378,6 +408,7 @@ class CodexObsidianView extends ItemView {
       typing.createEl('span', { text: '⚡ Codex가 처리 중...' });
     }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    this.updateContextInfo();
   }
 
   async handleSend() {
@@ -519,6 +550,18 @@ class CodexObsidianSettings extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl('h2', { text: '⚙️ Codex Obsidian 설정' });
+
+    // OpenAI API 키 (선택사항)
+    containerEl.createEl('h3', { text: 'OpenAI API 키 (선택사항)' });
+    const apiKeyDesc = containerEl.createEl('p', { cls: 'setting-item-description' });
+    apiKeyDesc.appendText('Codex CLI 대신 OpenAI API를 직접 사용할 경우 입력하세요. → ');
+    const apiKeyLink = apiKeyDesc.createEl('a', { text: 'platform.openai.com/api-keys 🔗', href: 'https://platform.openai.com/api-keys' });
+    apiKeyLink.style.color = 'var(--text-accent)';
+    apiKeyLink.style.fontWeight = '600';
+
+    new Setting(containerEl).setName('OpenAI API 키').setDesc('sk-... 로 시작하는 API 키를 입력하세요 (선택사항)')
+      .addText(t => t.setPlaceholder('sk-...').setValue(this.plugin.settings.openaiApiKey)
+        .onChange(async v => { this.plugin.settings.openaiApiKey = v.trim(); await this.plugin.saveSettings(); }));
 
     containerEl.createEl('h3', { text: 'Codex CLI' });
 

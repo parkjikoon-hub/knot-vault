@@ -6,7 +6,9 @@
 .codex-obsidian-header { padding: 12px 16px 8px; border-bottom: 1px solid var(--background-modifier-border); background: var(--background-secondary); }
 .codex-header-title { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 700; font-size: var(--font-text-size); }
 .codex-logo { width: 20px; height: 20px; background: linear-gradient(135deg, #10a37f, #1a73e8); border-radius: 6px; flex-shrink: 0; }
-.codex-version-badge { font-size: calc(var(--font-text-size) - 3px); background: var(--background-modifier-border); color: var(--text-muted); padding: 2px 6px; border-radius: 10px; font-weight: 400; margin-left: auto; }
+.codex-version-badge { font-size: calc(var(--font-text-size) - 3px); background: var(--background-modifier-border); color: var(--text-muted); padding: 2px 6px; border-radius: 10px; font-weight: 400; }
+.codex-model-select { font-size: calc(var(--font-text-size) - 2px); background: var(--background-primary); color: var(--text-muted); border: 1px solid var(--background-modifier-border); border-radius: 4px; padding: 2px 4px; cursor: pointer; }
+.codex-context-info { font-size: calc(var(--font-text-size) - 3px); color: var(--text-faint); margin-left: auto; }
 
 .codex-status-bar { display: flex; align-items: center; gap: 4px; font-size: calc(var(--font-text-size) - 2px); color: var(--text-muted); flex-wrap: wrap; }
 .status-ok { color: #22c55e; font-weight: 600; }
@@ -40,11 +42,13 @@
 
 .codex-typing { padding: 10px 14px; background: var(--background-secondary); border-radius: 12px; border-bottom-left-radius: 4px; border: 1px solid var(--background-modifier-border); font-size: calc(var(--font-text-size) - 1px); color: var(--text-muted); font-family: var(--font-monospace); display: flex; align-items: center; gap: 6px; width: fit-content; }
 
-.codex-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; text-align: center; color: var(--text-muted); font-size: var(--font-text-size); }
-.codex-empty-icon { font-size: 40px; opacity: 0.5; }
+.codex-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 32px; text-align: center; }
+.codex-empty-logo { width: 64px; height: 64px; }
+.codex-welcome-text { font-size: var(--font-text-size); color: var(--text-normal); font-weight: 600; }
 
-.codex-toolbar { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 12px; border-top: 1px solid var(--background-modifier-border); border-bottom: 1px solid var(--background-modifier-border); background: var(--background-primary); }
-.codex-toolbar-btn { font-size: calc(var(--font-text-size) - 2px); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--background-modifier-border); background: var(--background-secondary); color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.codex-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--background-modifier-border); border-bottom: 1px solid var(--background-modifier-border); background: var(--background-primary); }
+.codex-toolbar-btn { height: 36px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: calc(var(--font-text-size) - 2px); border-radius: 6px; border: 1px solid var(--background-modifier-border); background: var(--background-secondary); color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.codex-toolbar-btn svg { flex-shrink: 0; }
 .codex-toolbar-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); border-color: var(--interactive-accent); }
 
 .codex-input-area { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }

@@ -143,6 +143,27 @@ class GeminiObsidianView extends ItemView {
     titleRow.createEl('span', { text: 'Gemini Obsidian' });
     titleRow.createEl('span', { text: `v${PLUGIN_VERSION}`, cls: 'gemini-version-badge' });
 
+    // 모델 선택 드롭다운
+    const modelSelect = titleRow.createEl('select', { cls: 'gemini-model-select' });
+    [
+      { value: 'gemini-1.5-flash', label: 'Flash' },
+      { value: 'gemini-1.5-pro', label: 'Pro' },
+      { value: 'gemini-2.0-flash', label: 'Flash2' },
+      { value: 'gemini-2.5-pro', label: 'Pro2.5' },
+    ].forEach(({ value, label }) => {
+      const opt = modelSelect.createEl('option', { value, text: label });
+      if (value === this.plugin.settings.model) opt.selected = true;
+    });
+    modelSelect.onchange = async () => {
+      this.plugin.settings.model = modelSelect.value;
+      await this.plugin.saveSettings();
+      this.updateContextInfo();
+    };
+
+    // 컨텍스트 토큰 표시
+    this.contextInfoEl = titleRow.createEl('span', { cls: 'gemini-context-info' });
+    this.updateContextInfo();
+
     const cliStatus = header.createDiv('gemini-cli-status');
     cliStatus.createEl('span', {
       text: this.cliAvailable ? '● Obsidian CLI 연결됨' : '○ 기본 모드',
@@ -160,17 +181,28 @@ class GeminiObsidianView extends ItemView {
 
     // 툴바
     const toolbar = root.createDiv('gemini-toolbar');
+    const SVGS = {
+      summary: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+      search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+      plan: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>',
+      meeting: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      action: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+      save: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+      reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>',
+    };
     [
-      { icon: '📄', label: '현재 노트 요약', fn: () => this.quickSend('현재 노트를 핵심 위주로 요약해줘.') },
-      { icon: '🔍', label: '관련 노트 검색', fn: () => this.searchRelatedNotes() },
-      { icon: '📋', label: '기획서 변환', fn: () => this.quickSend('지금까지 대화를 체계적인 기획서 형식으로 정리해줘.') },
-      { icon: '📝', label: '회의록 작성', fn: () => this.quickSend('대화 내용을 회의록 형식으로 정리해줘.') },
-      { icon: '✅', label: '액션 아이템', fn: () => this.quickSend('대화에서 할 일만 체크리스트로 뽑아줘.') },
-      { icon: '💾', label: '노트 저장', fn: () => this.quickSend('지금까지 대화를 옵시디언 노트로 저장해줘. 마크다운 형식으로 잘 정리해서.') },
-      { icon: '🔄', label: '초기화', fn: () => this.clearChat() },
-    ].forEach(({ icon, label, fn }) => {
+      { svg: SVGS.summary, label: '현재 노트 요약', fn: () => this.quickSend('현재 노트를 핵심 위주로 요약해줘.') },
+      { svg: SVGS.search, label: '관련 노트 검색', fn: () => this.searchRelatedNotes() },
+      { svg: SVGS.plan, label: '기획서 변환', fn: () => this.quickSend('지금까지 대화를 체계적인 기획서 형식으로 정리해줘.') },
+      { svg: SVGS.meeting, label: '회의록 작성', fn: () => this.quickSend('대화 내용을 회의록 형식으로 정리해줘.') },
+      { svg: SVGS.action, label: '액션 아이템', fn: () => this.quickSend('대화에서 할 일만 체크리스트로 뽑아줘.') },
+      { svg: SVGS.save, label: '노트 저장', fn: () => this.quickSend('지금까지 대화를 옵시디언 노트로 저장해줘. 마크다운 형식으로 잘 정리해서.') },
+      { svg: SVGS.reset, label: '초기화', fn: () => this.clearChat() },
+    ].forEach(({ svg, label, fn }) => {
       const btn = toolbar.createEl('button', { cls: 'gemini-toolbar-btn' });
-      btn.createEl('span', { text: icon + ' ' + label });
+      const iconEl = btn.createSpan();
+      iconEl.innerHTML = svg;
+      btn.createEl('span', { text: label });
       btn.onclick = fn;
     });
 
@@ -197,22 +229,18 @@ class GeminiObsidianView extends ItemView {
   }
 
   showEmpty() {
+    this.messagesEl.empty();
     const el = this.messagesEl.createDiv('gemini-empty');
-    el.createDiv({ cls: 'gemini-empty-icon', text: '✨' });
-    el.createEl('p', { text: 'Gemini Obsidian에 오신 것을 환영합니다!' });
-    if (!this.plugin.settings.apiKey) {
-      const w = el.createEl('p');
-      w.style.color = 'var(--color-orange)';
-      w.appendText('⚠️ API 키를 먼저 입력해주세요. → ');
-      const wLink = w.createEl('a', { text: 'Google AI Studio에서 무료 발급 🔗', href: 'https://aistudio.google.com/apikey' });
-      wLink.style.color = 'var(--text-accent)';
-      wLink.style.fontWeight = '600';
-    }
-    el.createEl('p', {
-      text: this.cliAvailable
-        ? '✅ Obsidian CLI 연결됨 — 스마트 노트 검색·저장 사용 가능'
-        : '💡 Obsidian CLI 설치 시 스마트 노트 검색·저장 기능이 활성화됩니다.'
-    });
+    const logoEl = el.createDiv({ cls: 'gemini-empty-logo' });
+    logoEl.innerHTML = '<svg width="64" height="64" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4285f4"/><stop offset="100%" style="stop-color:#34a853"/></linearGradient></defs><circle cx="32" cy="32" r="32" fill="url(#g)"/><text x="32" y="42" text-anchor="middle" font-size="28" fill="white">G</text></svg>';
+    el.createEl('p', { text: 'Gemini Obsidian에 오신 것을 환영합니다!', cls: 'gemini-welcome-text' });
+  }
+
+  updateContextInfo() {
+    if (!this.contextInfoEl) return;
+    const totalChars = this.messages.reduce((sum, m) => sum + m.content.length, 0);
+    const tokens = Math.round(totalChars / 4);
+    this.contextInfoEl.textContent = `컨텍스트: ~${tokens.toLocaleString()} 토큰`;
   }
 
   updateContextBar() {
@@ -289,6 +317,7 @@ class GeminiObsidianView extends ItemView {
       [0,1,2].forEach(() => typing.createEl('span'));
     }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    this.updateContextInfo();
   }
 
   async handleSend() {
