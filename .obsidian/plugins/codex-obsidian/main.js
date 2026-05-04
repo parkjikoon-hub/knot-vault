@@ -521,6 +521,20 @@ class CodexObsidianSettings extends PluginSettingTab {
     containerEl.createEl('h2', { text: '⚙️ Codex Obsidian 설정' });
 
     containerEl.createEl('h3', { text: 'Codex CLI' });
+
+    // Codex 설치 안내 링크
+    const codexLinkEl = containerEl.createEl('p', { cls: 'setting-item-description' });
+    codexLinkEl.appendText('Codex CLI가 없으신가요? → ');
+    const codexLink = codexLinkEl.createEl('a', { text: 'OpenAI Codex 설치 안내 🔗', href: 'https://github.com/openai/codex' });
+    codexLink.style.color = 'var(--text-accent)';
+    codexLink.style.fontWeight = '600';
+    codexLinkEl.createEl('br');
+    codexLinkEl.appendText('터미널에서: ');
+    const codexCode = codexLinkEl.createEl('code', { text: 'npm install -g @openai/codex@latest' });
+    codexCode.style.background = 'var(--background-secondary)';
+    codexCode.style.padding = '1px 6px';
+    codexCode.style.borderRadius = '4px';
+
     new Setting(containerEl).setName('Codex 실행 경로').setDesc('기본값: codex (PATH에 등록된 경우). 전체 경로 입력도 가능.')
       .addText(t => t.setPlaceholder('codex').setValue(this.plugin.settings.codexPath)
         .onChange(async v => { this.plugin.settings.codexPath = v.trim() || 'codex'; await this.plugin.saveSettings(); }));

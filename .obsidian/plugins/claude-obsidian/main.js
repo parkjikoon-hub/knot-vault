@@ -185,9 +185,11 @@ class ClaudeObsidianView extends ItemView {
     if (!this.plugin.settings.apiKey) {
       const w = el.createEl('p', { text: '⚠️ 설정에서 Claude API 키를 먼저 입력해주세요.' });
       w.style.color = 'var(--color-orange)';
-      const hint = el.createEl('p', { text: 'API 키 발급: console.anthropic.com' });
+      const hint = el.createEl('p');
       hint.style.fontSize = '12px';
-      hint.style.color = 'var(--text-muted)';
+      hint.appendText('API 키 발급 → ');
+      const hintLink = hint.createEl('a', { text: 'console.anthropic.com 🔗', href: 'https://console.anthropic.com/settings/keys' });
+      hintLink.style.color = 'var(--text-accent)';
     }
     el.createEl('p', {
       text: this.cliAvailable
@@ -413,12 +415,15 @@ class ClaudeObsidianSettings extends PluginSettingTab {
     containerEl.createEl('h2', { text: '⚙️ Claude Obsidian 설정' });
 
     containerEl.createEl('h3', { text: 'Claude API' });
-    containerEl.createEl('p', {
-      text: 'API 키 발급: console.anthropic.com → API Keys → Create Key',
-      cls: 'setting-item-description'
-    });
 
-    new Setting(containerEl).setName('API 키').setDesc('Anthropic Console에서 발급한 API 키 (sk-ant-... 로 시작)')
+    // API 키 발급 링크
+    const claudeLinkEl = containerEl.createEl('p', { cls: 'setting-item-description' });
+    claudeLinkEl.appendText('API 키가 없으신가요? → ');
+    const claudeLink = claudeLinkEl.createEl('a', { text: 'Anthropic Console에서 발급받기 🔗', href: 'https://console.anthropic.com/settings/keys' });
+    claudeLink.style.color = 'var(--text-accent)';
+    claudeLink.style.fontWeight = '600';
+
+    new Setting(containerEl).setName('API 키').setDesc('발급받은 키를 아래에 붙여넣으세요 (sk-ant-... 로 시작)')
       .addText(t => t.setPlaceholder('sk-ant-...').setValue(this.plugin.settings.apiKey)
         .onChange(async v => { this.plugin.settings.apiKey = v.trim(); await this.plugin.saveSettings(); }));
 

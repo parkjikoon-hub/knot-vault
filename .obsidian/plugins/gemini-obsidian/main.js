@@ -201,8 +201,12 @@ class GeminiObsidianView extends ItemView {
     el.createDiv({ cls: 'gemini-empty-icon', text: '✨' });
     el.createEl('p', { text: 'Gemini Obsidian에 오신 것을 환영합니다!' });
     if (!this.plugin.settings.apiKey) {
-      const w = el.createEl('p', { text: '⚠️ 설정에서 Gemini API 키를 먼저 입력해주세요.' });
+      const w = el.createEl('p');
       w.style.color = 'var(--color-orange)';
+      w.appendText('⚠️ API 키를 먼저 입력해주세요. → ');
+      const wLink = w.createEl('a', { text: 'Google AI Studio에서 무료 발급 🔗', href: 'https://aistudio.google.com/apikey' });
+      wLink.style.color = 'var(--text-accent)';
+      wLink.style.fontWeight = '600';
     }
     el.createEl('p', {
       text: this.cliAvailable
@@ -413,7 +417,15 @@ class GeminiObsidianSettings extends PluginSettingTab {
     containerEl.createEl('h2', { text: '⚙️ Gemini Obsidian 설정' });
 
     containerEl.createEl('h3', { text: 'Gemini API' });
-    new Setting(containerEl).setName('API 키').setDesc('Google AI Studio (aistudio.google.com)에서 발급')
+
+    // API 키 발급 링크
+    const geminiLinkEl = containerEl.createEl('p', { cls: 'setting-item-description' });
+    geminiLinkEl.appendText('API 키가 없으신가요? → ');
+    const geminiLink = geminiLinkEl.createEl('a', { text: 'Google AI Studio에서 무료 발급받기 🔗', href: 'https://aistudio.google.com/apikey' });
+    geminiLink.style.color = 'var(--text-accent)';
+    geminiLink.style.fontWeight = '600';
+
+    new Setting(containerEl).setName('API 키').setDesc('발급받은 키를 아래에 붙여넣으세요 (AIza... 로 시작)')
       .addText(t => t.setPlaceholder('AIza...').setValue(this.plugin.settings.apiKey)
         .onChange(async v => { this.plugin.settings.apiKey = v.trim(); await this.plugin.saveSettings(); }));
 
