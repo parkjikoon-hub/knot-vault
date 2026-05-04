@@ -220,7 +220,10 @@ KNOT-vault/
 |--------|------|
 | [[Guides/첫날-5분-실습]] | ⭐ 설치 후 첫 번째로 읽을 것 |
 | [[Guides/템플릿-사용-가이드]] | 템플릿으로 노트 만드는 방법 |
+| [[Guides/유튜브-웹글-노트로-저장하기]] | 유튜브·웹 글 AI로 요약하기 |
+| [[Guides/자주-쓰는-단축키]] | 꼭 알아야 할 단축키 10개 |
+| [[Guides/AI에게-잘-물어보는-법]] | 복사해서 바로 쓰는 질문 예시 모음 |
+| [[Guides/막힐-때-해결-가이드]] | 문제 생겼을 때 + AI에게 물어보는 법 |
 | [[Guides/Gemini-Obsidian-가이드]] | Gemini 상세 사용법 |
 | [[Guides/Claude-Obsidian-가이드]] | Claude 상세 사용법 |
 | [[Guides/Codex-Obsidian-가이드]] | Codex 상세 사용법 |
-| [[Guides/Obsidian-Code-설치가이드]] | Claude Code 설치 가이드 |
