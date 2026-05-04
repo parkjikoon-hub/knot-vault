@@ -9,5 +9,6 @@
   "spellcheck": false,
   "spellcheckLanguages": null,
   "readableLineLength": true,
-  "attachmentFolderPath": "References"
+  "attachmentFolderPath": "References",
+  "promptDelete": false
 }
