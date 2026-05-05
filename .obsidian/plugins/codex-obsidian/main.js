@@ -546,23 +546,22 @@ class CodexObsidianView extends ItemView {
     this.memoryMapEl.empty();
     const status = await this.memoryMap.getStatus();
     const header = this.memoryMapEl.createDiv({ cls: 'codex-memory-map-header' });
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 8px;';
-    const title = header.createDiv();
-    title.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;font-size:12px;font-weight:600;';
-    title.innerHTML = `<span style="font-size:10px;">${this.isMemoryMapExpanded ? '▼' : '▶'}</span><span>🗺️ ${status.built ? `Memory Map · ${status.count}개 노트` : 'Memory Map (미구축)'}</span>`;
-    title.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
-    const actions = header.createDiv();
-    actions.style.cssText = 'display:flex;gap:4px;';
+
+    const toggleBtn = header.createSpan({ cls: 'codex-memory-map-toggle' });
+    toggleBtn.textContent = this.isMemoryMapExpanded ? '▼' : '▶';
+    toggleBtn.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
+
+    const titleSpan = header.createSpan({ cls: 'codex-memory-map-title' });
+    titleSpan.textContent = `🗺️ ${status.built ? `Memory Map · ${status.count}개 노트` : 'Memory Map (미구축)'}`;
+    titleSpan.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
+
     if (this.relatedNotes.length > 0) {
-      const cb = actions.createEl('button', { text: '지우기' });
-      cb.style.cssText = 'font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;';
+      const cb = header.createEl('button', { cls: 'codex-memory-btn', text: '지우기' });
       cb.onclick = async () => { this.relatedNotes = []; await this.renderMemoryMapPanel(); };
     }
-    const buildBtn = actions.createEl('button', { text: status.built ? '재구축' : '구축' });
-    buildBtn.style.cssText = 'font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;';
+    const buildBtn = header.createEl('button', { cls: 'codex-memory-btn', text: status.built ? '재구축' : '구축' });
     buildBtn.onclick = async () => { buildBtn.textContent = '구축 중...'; await this.memoryMap.build(); await this.renderMemoryMapPanel(); new Notice('Memory Map 구축 완료!'); };
-    const findBtn = actions.createEl('button', { text: '찾기' });
-    findBtn.style.cssText = 'font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;background:var(--interactive-accent);color:var(--text-on-accent);border:none;';
+    const findBtn = header.createEl('button', { cls: 'codex-memory-btn', text: '관련 노트 찾기' });
     if (!this.app.workspace.getActiveFile()) findBtn.disabled = true;
     findBtn.onclick = async () => {
       const file = this.app.workspace.getActiveFile();

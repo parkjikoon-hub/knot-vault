@@ -432,29 +432,30 @@ class ClaudeObsidianView extends ItemView {
     this.memoryMapEl.toggleClass('is-collapsed', !this.isMemoryMapExpanded);
 
     const header = this.memoryMapEl.createDiv({ cls: 'claude-memory-map-header' });
-    const title = header.createDiv({ cls: 'claude-memory-map-title' });
-    title.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;';
-    title.innerHTML = `<span style="font-size:10px;">${this.isMemoryMapExpanded ? '▼' : '▶'}</span>
-      <span style="font-size:12px;">🗺️</span>
-      <span style="font-size:12px;font-weight:600;">${status.built ? `Memory Map · ${status.count}개 노트` : 'Memory Map (미구축)'}</span>`;
-    title.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
 
-    const actions = header.createDiv({ cls: 'claude-memory-map-actions' });
-    actions.style.cssText = 'display:flex;gap:4px;';
+    // 토글 화살표 — 클릭 시 접기/펼치기
+    const toggleBtn = header.createSpan({ cls: 'claude-memory-map-toggle' });
+    toggleBtn.textContent = this.isMemoryMapExpanded ? '▼' : '▶';
+    toggleBtn.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
+
+    // 아이콘 + 제목 (클릭 시 접기/펼치기)
+    const titleSpan = header.createSpan({ cls: 'claude-memory-map-title' });
+    titleSpan.textContent = `🗺️ ${status.built ? `Memory Map · ${status.count}개 노트` : 'Memory Map (미구축)'}`;
+    titleSpan.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
+
+    // 버튼들 — 제목 오른쪽에 나란히
     if (this.relatedNotes.length > 0) {
-      const clearBtn = actions.createEl('button', { cls: 'claude-memory-btn', text: '지우기' });
+      const clearBtn = header.createEl('button', { cls: 'claude-memory-btn', text: '지우기' });
       clearBtn.onclick = async () => { this.relatedNotes = []; await this.renderMemoryMapPanel(); };
     }
-    const buildBtn = actions.createEl('button', { cls: 'claude-memory-btn', text: status.built ? '재구축' : '구축하기' });
+    const buildBtn = header.createEl('button', { cls: 'claude-memory-btn', text: status.built ? '재구축' : '구축하기' });
     buildBtn.onclick = async () => {
       buildBtn.textContent = '구축 중...';
       await this.memoryMap.build();
       await this.renderMemoryMapPanel();
       new Notice('Memory Map 구축 완료!');
     };
-    const findBtn = actions.createEl('button', { cls: 'claude-memory-btn', text: '관련 노트 찾기' });
-    findBtn.style.background = 'var(--interactive-accent)';
-    findBtn.style.color = 'var(--text-on-accent)';
+    const findBtn = header.createEl('button', { cls: 'claude-memory-btn', text: '관련 노트 찾기' });
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) findBtn.disabled = true;
     findBtn.onclick = async () => {

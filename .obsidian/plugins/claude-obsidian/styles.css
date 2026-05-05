@@ -53,6 +53,17 @@
 .claude-empty-logo { width: 64px; height: 64px; }
 .claude-welcome-text { font-family: var(--font-interface); font-size: var(--font-text-size); color: var(--text-normal); font-weight: 600; }
 
+/* Memory Map */
+.claude-memory-map-panel { border-bottom: 1px solid var(--background-modifier-border); background: var(--background-secondary); }
+.claude-memory-map-header { display: flex; align-items: center; gap: 4px; padding: 4px 8px; flex-wrap: nowrap; }
+.claude-memory-map-toggle { font-size: 9px; color: var(--text-muted); cursor: pointer; flex-shrink: 0; padding: 2px; }
+.claude-memory-map-title { font-size: 12px; font-weight: 600; color: var(--text-normal); cursor: pointer; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.claude-memory-btn { font-family: var(--font-interface); font-size: calc(var(--font-text-size) - 3px); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-muted); cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.claude-memory-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.claude-memory-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.claude-memory-results { padding: 4px 8px 6px; display: flex; flex-direction: column; gap: 3px; }
+.claude-memory-hint { font-size: 11px; color: var(--text-muted); padding: 4px 8px 6px; }
+
 /* 툴바 — 슬래시 커맨드로 대체하여 숨김 */
 .claude-toolbar { display: none; }
 
