@@ -186,15 +186,25 @@ class ObsidianCLI {
     try { return JSON.parse(result) || []; } catch { return []; }
   }
   static async readNote(name) { return await this.run(`read file="${name}"`); }
-  static async createNote({ name, content, folder, author, tags, type }) {
+  static async createNote({ name, content, folder, author, tags, type, vaultPath }) {
     const date = new Date().toISOString().slice(0, 10);
     const authorLine = author ? `\n  - "[[${author}]]"` : '\n  - ""';
     const tagLines = (tags || ['gemini-obsidian']).map(t => `  - ${t}`).join('\n');
     const frontmatter = `---\ntype: ${type || 'note'}\naliases: []\ndescription: "AI-generated note from Gemini Obsidian conversation on ${date}."\nauthor:${authorLine}\ndate created: ${date}\ndate modified: ${date}\ntags:\n${tagLines}\n---\n\n`;
     const fullContent = frontmatter + content;
-    const path = folder ? `${folder}/${name}.md` : `${name}.md`;
+    const p = folder ? `${folder}/${name}.md` : `${name}.md`;
+    if (vaultPath) {
+      const fs = require('fs');
+      const path = require('path');
+      const absPath = path.join(vaultPath, p);
+      const dir = path.dirname(absPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(absPath, fullContent, 'utf8');
+      await this.run(`open path="${p}" newtab`);
+      return true;
+    }
     const escaped = fullContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
-    return (await this.run(`create name="${name}" path="${path}" content="${escaped}" silent overwrite`)) !== null;
+    return (await this.run(`create path="${p}" content="${escaped}" overwrite`)) !== null;
   }
   static async reloadPlugin(id) { return await this.run(`plugin:reload id=${id}`); }
   static async getErrors() { return await this.run('dev:errors'); }
@@ -641,7 +651,8 @@ class GeminiObsidianView extends ItemView {
     const fileName = `${date} ${rawTitle.slice(0, 50)}`;
     const { saveFolder, knotAuthor } = this.plugin.settings;
     if (this.cliAvailable) {
-      const ok = await ObsidianCLI.createNote({ name: fileName, content, folder: saveFolder, author: knotAuthor, tags: ['gemini-obsidian', 'ai-generated'], type: 'note' });
+      const vaultPath = this.app.vault.adapter.basePath;
+      const ok = await ObsidianCLI.createNote({ name: fileName, content, folder: saveFolder, author: knotAuthor, tags: ['gemini-obsidian', 'ai-generated'], type: 'note', vaultPath });
       if (ok) { new Notice(`✅ 노트 저장 완료 (CLI): ${fileName}`); return; }
     }
     const frontmatter = `---\ntype: note\naliases: []\ndescription: "AI-generated note from Gemini Obsidian."\nauthor:\n  - "${knotAuthor || ''}"\ndate created: ${date}\ndate modified: ${date}\ntags:\n  - gemini-obsidian\n  - ai-generated\n---\n\n`;

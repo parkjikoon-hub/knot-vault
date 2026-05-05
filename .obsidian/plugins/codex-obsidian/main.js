@@ -178,14 +178,25 @@ class ObsidianCLI {
   }
 
   // obsidian-skill 방식 — KNOT 프론트매터 포함 노트 생성
-  static async createNote({ name, content, folder, author, tags, type }) {
+  static async createNote({ name, content, folder, author, tags, type, vaultPath }) {
     const date = new Date().toISOString().slice(0, 10);
     const authorLine = author ? `\n  - "[[${author}]]"` : '\n  - ""';
     const tagLines = (tags || ['codex-obsidian']).map(t => `  - ${t}`).join('\n');
     const front = `---\ntype: ${type || 'note'}\naliases: []\ndescription: "AI-generated note from Codex Obsidian on ${date}."\nauthor:${authorLine}\ndate created: ${date}\ndate modified: ${date}\ntags:\n${tagLines}\n---\n\n`;
-    const escaped = (front + content).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    const fullContent = front + content;
     const p = folder ? `${folder}/${name}.md` : `${name}.md`;
-    return (await this.run(`create name="${name}" path="${p}" content="${escaped}" silent overwrite`)) !== null;
+    if (vaultPath) {
+      const fs = require('fs');
+      const path = require('path');
+      const absPath = path.join(vaultPath, p);
+      const dir = path.dirname(absPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(absPath, fullContent, 'utf8');
+      await this.run(`open path="${p}" newtab`);
+      return true;
+    }
+    const escaped = fullContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    return (await this.run(`create path="${p}" content="${escaped}" overwrite`)) !== null;
   }
 
   static async reloadPlugin(id) { return await this.run(`plugin:reload id=${id}`); }
@@ -857,9 +868,10 @@ class CodexObsidianView extends ItemView {
     const { saveFolder, knotAuthor } = this.plugin.settings;
 
     if (this.cliAvailable) {
+      const vaultPath = this.app.vault.adapter.basePath;
       const ok = await ObsidianCLI.createNote({
         name: fileName, content, folder: saveFolder,
-        author: knotAuthor, tags: ['codex-obsidian', 'ai-generated'], type: 'note'
+        author: knotAuthor, tags: ['codex-obsidian', 'ai-generated'], type: 'note', vaultPath
       });
       if (ok) { new Notice(`✅ 노트 저장 완료 (CLI): ${fileName}`); return; }
     }

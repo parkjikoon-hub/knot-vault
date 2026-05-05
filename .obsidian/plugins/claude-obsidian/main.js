@@ -223,14 +223,30 @@ class ObsidianCLI {
 
   static async readNote(name) { return await this.run(`read file="${name}"`); }
 
-  static async createNote({ name, content, folder, author, tags, type }) {
+  static async createNote({ name, content, folder, author, tags, type, vaultPath }) {
     const date = new Date().toISOString().slice(0, 10);
     const authorLine = author ? `\n  - "[[${author}]]"` : '\n  - ""';
     const tagLines = (tags || ['claude-obsidian']).map(t => `  - ${t}`).join('\n');
     const front = `---\ntype: ${type || 'note'}\naliases: []\ndescription: "AI-generated note from Claude Obsidian on ${date}."\nauthor:${authorLine}\ndate created: ${date}\ndate modified: ${date}\ntags:\n${tagLines}\n---\n\n`;
-    const escaped = (front + content).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    const fullContent = front + content;
     const p = folder ? `${folder}/${name}.md` : `${name}.md`;
-    return (await this.run(`create name="${name}" path="${p}" content="${escaped}" silent overwrite`)) !== null;
+
+    // content를 CLI 인자로 넘기면 특수문자(쉼표 등)에서 JSON 파싱 오류 발생
+    // 대신 vault 파일시스템에 직접 쓴 뒤 CLI로 open만 호출
+    if (vaultPath) {
+      const fs = require('fs');
+      const path = require('path');
+      const absPath = path.join(vaultPath, p);
+      const dir = path.dirname(absPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(absPath, fullContent, 'utf8');
+      await this.run(`open path="${p}" newtab`);
+      return true;
+    }
+
+    // vaultPath 없으면 content를 줄바꿈만 이스케이프해서 전달 (짧은 내용용 폴백)
+    const escaped = fullContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    return (await this.run(`create path="${p}" content="${escaped}" overwrite`)) !== null;
   }
 
   static async reloadPlugin(id) { return await this.run(`plugin:reload id=${id}`); }
@@ -772,7 +788,8 @@ class ClaudeObsidianView extends ItemView {
     const fileName = `${date} ${rawTitle.slice(0, 50)}`;
     const { saveFolder, knotAuthor } = this.plugin.settings;
     if (this.cliAvailable) {
-      const ok = await ObsidianCLI.createNote({ name: fileName, content, folder: saveFolder, author: knotAuthor, tags: ['claude-obsidian', 'ai-generated'], type: 'note' });
+      const vaultPath = this.app.vault.adapter.basePath;
+      const ok = await ObsidianCLI.createNote({ name: fileName, content, folder: saveFolder, author: knotAuthor, tags: ['claude-obsidian', 'ai-generated'], type: 'note', vaultPath });
       if (ok) { new Notice(`✅ 노트 저장 완료 (CLI): ${fileName}`); return; }
     }
     const frontmatter = `---\ntype: note\naliases: []\ndescription: "AI-generated note from Claude Obsidian."\nauthor:\n  - "${knotAuthor || ''}"\ndate created: ${date}\ndate modified: ${date}\ntags:\n  - claude-obsidian\n  - ai-generated\n---\n\n`;
