@@ -11,35 +11,38 @@ Claude, Gemini, Codex(GPT) 3가지 AI를 옵시디언 안에서 바로 쓸 수 �
 
 ## 플러그인 3종 소개
 
-### 🟠 Claude Obsidian
+### 🟠 Claude Obsidian `v1.3.0`
 **Anthropic Claude** AI와 대화하는 플러그인입니다.
 
 - Extended Thinking(사고 단계) 지원 — Low / Medium / High / Max
 - 핀 노트 영구 저장 — 재시작 후에도 유지
 - 슬래시(/) 커맨드 메뉴
 - 작업 타임라인 — 응답 진행 단계 실시간 표시
+- 🌐 웹 검색 / 📄 노트 컨텍스트 / 🔄 재생성 / ✏️ 편집 지원
 - 지원 모델: Sonnet 4.6 / Opus 4.6 / Opus 4.7
 - API 키: [Anthropic Console](https://console.anthropic.com/settings/keys)에서 발급 (유료)
 - 저장소: [parkjikoon-hub/claude-obsidian](https://github.com/parkjikoon-hub/claude-obsidian)
 
-### 🔵 Gemini Obsidian
+### 🔵 Gemini Obsidian `v1.4.0`
 **Google Gemini** AI와 대화하는 플러그인입니다.
 
 - **무료로 시작 가능** — Gemini Flash 모델 무료 한도 제공
 - Thinking 모드 지원 — Low / Medium / High
 - 핀 노트 영구 저장 — 재시작 후에도 유지
 - 슬래시(/) 커맨드 메뉴 (번역 기능 강화)
+- 🌐 Google 웹 검색(Grounding) / 📄 노트 컨텍스트 / 🔄 재생성 / ✏️ 편집 지원
 - 지원 모델: Gemini 3.1 Flash Lite / 3.1 Flash / 3.1 Pro
 - API 키: [Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급
 - 저장소: [parkjikoon-hub/gemini-obsidian](https://github.com/parkjikoon-hub/gemini-obsidian)
 
-### 🟢 Codex Obsidian
+### 🟢 Codex Obsidian `v1.3.0`
 **OpenAI GPT**와 대화하는 플러그인입니다.
 
 - Reasoning Effort 지원 — Minimum / Low / Medium / High / Ultra High
 - 핀 노트 영구 저장 — 재시작 후에도 유지
 - 슬래시(/) 커맨드 메뉴 (코드 생성 특화)
 - 스트리밍 실시간 출력
+- 🌐 웹 검색(web_search_preview) / 📄 노트 컨텍스트 / 🔄 재생성 / ✏️ 편집 지원
 - 지원 모델: GPT 5.3 / 5.4 / 5.5
 - API 키: [OpenAI Platform](https://platform.openai.com/api-keys)에서 발급 (유료)
 - 저장소: [parkjikoon-hub/codex-obsidian](https://github.com/parkjikoon-hub/codex-obsidian)
@@ -53,8 +56,13 @@ Claude, Gemini, Codex(GPT) 3가지 AI를 옵시디언 안에서 바로 쓸 수 �
 | 📌 **핀 노트 영구 저장** | 핀 고정 노트가 옵시디언 재시작 후에도 유지 |
 | ⚡ **슬래시(/) 커맨드** | 입력창에서 `/` 입력 → 요약·분석·저장 등 빠른 실행 |
 | ⏱️ **작업 타임라인** | 응답 중 "컨텍스트 수집 → API 호출 → 완료" 단계 표시 |
-| 📎 **노트 컨텍스트** | 현재 열린 노트를 AI에게 자동 전달 |
+| 📄 **노트 컨텍스트 토글** | 현재 열린 노트를 AI에게 자동 전달 (버튼으로 켜기/끄기) |
+| 🌐 **웹 검색 토글** | 실시간 웹 검색으로 최신 정보 활용 (버튼으로 켜기/끄기) |
 | 💾 **노트 자동 생성** | 대화 내용을 KNOT 프론트매터 포함 노트로 저장 |
+| 🔄 **재생성 버튼** | AI 응답이 마음에 안 들면 같은 질문으로 다시 생성 |
+| ✏️ **메시지 편집** | 이전에 보낸 메시지를 수정하면 그 이후 대화 자동 재시작 |
+| ⏹️ **중단 후 텍스트 보존** | Esc로 중단해도 받은 내용은 저장됨 — 맥락이 끊기지 않음 |
+| 📏 **히스토리 자동 관리** | 대화가 길어지면 오래된 내용을 자동으로 정리해 토큰 초과 방지 |
 
 ---
 
@@ -148,7 +156,7 @@ KNOT-vault/
 | `Shift+Enter` / `Ctrl+Enter` | 줄바꿈 |
 | `/` | 슬래시 커맨드 메뉴 열기 |
 | `↑` `↓` | 슬래시 메뉴에서 항목 이동 |
-| `Esc` | 슬래시 메뉴 닫기 |
+| `Esc` | 슬래시 메뉴 닫기 / **생성 중단** (받은 내용은 저장됨) |
 
 ---
 
