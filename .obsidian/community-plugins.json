@@ -1,8 +1,9 @@
 [
-  "claude-obsidian",
   "gemini-obsidian",
   "codex-obsidian",
   "dataview",
   "templater-obsidian",
-  "obsidian-local-rest-api"
+  "obsidian-local-rest-api",
+  "claude-obsidian",
+  "obsidian-tasks-plugin"
 ]

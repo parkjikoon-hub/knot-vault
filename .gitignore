@@ -1,10 +1,77 @@
-# 옵시디언 개인 설정 (기기마다 다름)
+# ───────────────────────────────
+# Obsidian 개인 설정 (기기마다 다름)
+# ───────────────────────────────
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 .obsidian/cache
 .obsidian/plugins/*/data.json
+.obsidian/graph.json
+.obsidian/types.json
 
+# ───────────────────────────────
 # 시스템 파일
+# ───────────────────────────────
 .DS_Store
 Thumbs.db
 *.local
+
+# ───────────────────────────────
+# 개인 작업 파일 (공개 제외)
+# ───────────────────────────────
+HANDOFF.md
+DEVLOG.md
+_todo.md
+
+# ───────────────────────────────
+# Inbox — 개인 아이디어·자료
+# ───────────────────────────────
+Inbox/ideas/*
+Inbox/raw/*
+!Inbox/ideas/.gitkeep
+!Inbox/raw/.gitkeep
+
+# ───────────────────────────────
+# Projects — 개인 프로젝트
+# ───────────────────────────────
+Projects/DEV/*/
+Projects/RND/*/
+Projects/BIZ/*/
+!Projects/DEV/.gitkeep
+!Projects/RND/.gitkeep
+!Projects/BIZ/.gitkeep
+
+# ───────────────────────────────
+# Knowledge — 개인 위키 내용
+# (CLAUDE.md 스키마 파일만 유지)
+# ───────────────────────────────
+Knowledge/dev-knowledge/
+Knowledge/dialogue/
+Knowledge/science/
+Knowledge/index.md
+Knowledge/log.md
+!Knowledge/CLAUDE.md
+
+# ───────────────────────────────
+# Notes — 개인 메모
+# ───────────────────────────────
+Notes/*
+!Notes/.gitkeep
+
+# ───────────────────────────────
+# References — 개인 참고자료
+# ───────────────────────────────
+References/data/*
+References/docs/*
+References/images/*
+References/papers/*
+References/reports/*
+!References/data/.gitkeep
+!References/docs/.gitkeep
+!References/images/.gitkeep
+!References/papers/.gitkeep
+!References/reports/.gitkeep
+
+# ───────────────────────────────
+# claude-obsidian 메모리 인덱스
+# ───────────────────────────────
+.claude-obsidian/
