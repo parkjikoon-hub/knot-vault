@@ -1,7 +1,8 @@
 /*
- * Claude Obsidian v1.1.0
+ * Claude Obsidian v1.3.0
  * Claude AI + Obsidian CLI(obsidian-skill) 통합 플러그인
- * 기능: Memory Map, 핀 영구 저장, 슬래시 커맨드, 작업 타임라인
+ * 기능: 스트리밍 응답, 핀 영구 저장, 슬래시 커맨드, 작업 타임라인, 시스템 프롬프트 커스텀, 노트 컨텍스트 토글
+ *       중단 메시지 보존, 재생성 버튼, 메시지 편집, 히스토리 자동 관리
  * GitHub: https://github.com/parkjikoon-hub/claude-obsidian
  */
 
@@ -11,7 +12,7 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 const VIEW_TYPE = 'claude-obsidian-view';
-const PLUGIN_VERSION = '1.1.0';
+const PLUGIN_VERSION = '1.3.0';
 
 const DEFAULT_SETTINGS = {
   apiKey: '',
@@ -24,6 +25,8 @@ const DEFAULT_SETTINGS = {
   maxRelatedNotes: 3,
   maxTokens: 8192,
   pinnedNotePaths: [],
+  systemPrompt: '',
+  webSearch: false,
 };
 
 // 슬래시 커맨드 목록
@@ -37,172 +40,6 @@ const SLASH_COMMANDS = [
   { name: '/번역', hint: '한영 번역', description: '현재 노트 내용을 영어로 번역해줘. 원문도 함께 유지해줘.' },
   { name: '/초기화', hint: '대화 초기화', description: '__clear__' },
 ];
-
-// ── Memory Map 서비스 ─────────────────────────────────────────
-const STOP_WORDS = new Set([
-  '그리고', '그러나', '이것', '저것', '하는', '있는', '없는', 'the', 'and', 'for', 'with', 'that', 'this',
-  'from', 'into', 'about', 'note', 'notes', '정리', '내용', '문서', '관련', '키워드', '자료', '수업', '교육',
-  'https', 'http', 'www', 'com', 'net', 'org', 'html', 'utm', 'amp', 'nbsp', 'pdf', 'jpg', 'png', 'md',
-  '그리고', '또는', '하지만', '때문에', '위해서', '통해서', '대해서', '입니다', '합니다', '있는지', '있습니다',
-]);
-const NOISY_TERM = /^(?:https?|www|com|net|org|html?|utm|ref|amp|nbsp|localhost|\d+|[a-f0-9]{8,})$/i;
-const MEMORY_INDEX_PATH = '.claude-obsidian/memory/index.json';
-
-class MemoryMapService {
-  constructor(app) {
-    this.app = app;
-    this.index = null;
-  }
-
-  async build() {
-    const entries = [];
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      const content = await this.app.vault.cachedRead(file);
-      entries.push(this.toEntry(file, content));
-    }
-    this.index = { version: 2, builtAt: Date.now(), entries };
-    await this.persist(this.index);
-    return this.index;
-  }
-
-  async load() {
-    if (this.index) return this.index;
-    const adapter = this.app.vault.adapter;
-    try {
-      if (!await adapter.exists(MEMORY_INDEX_PATH)) return null;
-      const parsed = JSON.parse(await adapter.read(MEMORY_INDEX_PATH));
-      if (parsed.version !== 2 || !Array.isArray(parsed.entries)) return null;
-      this.index = parsed;
-      return parsed;
-    } catch { return null; }
-  }
-
-  async getStatus() {
-    const index = await this.load();
-    return { built: Boolean(index), count: index?.entries.length || 0, builtAt: index?.builtAt || null };
-  }
-
-  async findRelated(currentFile, limit = 8) {
-    const index = await this.load() || await this.build();
-    const current = index.entries.find(e => e.path === currentFile.path);
-    if (!current) return [];
-    const stats = this.createCorpusStats(index.entries);
-    return index.entries
-      .filter(e => e.path !== current.path)
-      .map(e => this.score(current, e, stats))
-      .filter(r => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-  }
-
-  async persist(index) {
-    const adapter = this.app.vault.adapter;
-    if (!await adapter.exists('.claude-obsidian')) await adapter.mkdir('.claude-obsidian');
-    if (!await adapter.exists('.claude-obsidian/memory')) await adapter.mkdir('.claude-obsidian/memory');
-    await adapter.write(MEMORY_INDEX_PATH, JSON.stringify(index, null, 2));
-  }
-
-  toEntry(file, content) {
-    const title = file.basename;
-    const folder = file.parent?.path || '';
-    const tags = this.extractTags(content);
-    const links = [...content.matchAll(/\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g)].map(m => m[1].trim()).filter(Boolean);
-    const headings = [...content.matchAll(/^#{1,6}\s+(.+)$/gm)].map(m => m[1].trim()).slice(0, 20);
-    return {
-      path: file.path, title, folder, tags, links, headings,
-      keywords: this.extractKeywords(title, tags, links, headings, content),
-      terms: this.extractTerms(title, tags, links, headings, content),
-      length: this.tokenize(content).length,
-      mtime: file.stat.mtime,
-    };
-  }
-
-  extractTags(content) {
-    const tags = new Set();
-    for (const m of content.matchAll(/(?:^|\s)#([\p{L}\p{N}_/-]+)/gu)) tags.add(m[1]);
-    const fm = content.match(/^---\n([\s\S]*?)\n---/);
-    const tl = fm?.[1].match(/^tags:\s*(.+)$/m)?.[1];
-    if (tl) tl.replace(/[[\]]/g, '').split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean).forEach(t => tags.add(t));
-    return [...tags];
-  }
-
-  extractKeywords(title, tags, links, headings, content) {
-    return [...Object.entries(this.extractTerms(title, tags, links, headings, content))].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([w]) => w);
-  }
-
-  extractTerms(title, tags, links, headings, content) {
-    const counts = new Map();
-    const add = (terms, w) => { for (const t of terms) counts.set(t, (counts.get(t) || 0) + w); };
-    add(this.tokenize(content), 1);
-    add(this.tokenize(headings.join(' ')), 3);
-    add(this.tokenize(links.join(' ')), 5);
-    add(this.tokenize(tags.join(' ')), 6);
-    add(this.tokenize(title), 8);
-    return Object.fromEntries(counts.entries());
-  }
-
-  tokenize(content) {
-    return content
-      .replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/gi, ' ')
-      .replace(/---[\s\S]*?---/, ' ').replace(/[^\p{L}\p{N}_-]+/gu, ' ')
-      .split(/\s+/).map(w => this.normalizeTerm(w)).filter(Boolean);
-  }
-
-  normalizeTerm(word) {
-    const n = word.trim().toLowerCase().replace(/^[-_]+|[-_]+$/g, '');
-    if (n.length < 2 || n.length > 40) return '';
-    if (STOP_WORDS.has(n) || NOISY_TERM.test(n)) return '';
-    if (/^\d+(?:[-_]\d+)*$/.test(n)) return '';
-    return n;
-  }
-
-  createCorpusStats(entries) {
-    const documentFrequency = new Map();
-    let totalLength = 0;
-    for (const e of entries) {
-      totalLength += Math.max(e.length || 0, 1);
-      for (const term of Object.keys(e.terms || {})) documentFrequency.set(term, (documentFrequency.get(term) || 0) + 1);
-    }
-    return { docCount: Math.max(entries.length, 1), avgLength: totalLength / Math.max(entries.length, 1), documentFrequency };
-  }
-
-  score(current, candidate, stats) {
-    let score = 0;
-    const reasons = [];
-    const cAlias = new Set([candidate.title, candidate.path, candidate.path.replace(/\.md$/i, '')]);
-    const curAlias = new Set([current.title, current.path, current.path.replace(/\.md$/i, '')]);
-    if (current.links.some(l => cAlias.has(l))) { score += 12; reasons.push('현재 노트에서 링크됨'); }
-    if (candidate.links.some(l => curAlias.has(l))) { score += 10; reasons.push('현재 노트를 백링크함'); }
-    const sharedTags = candidate.tags.filter(t => current.tags.includes(t));
-    if (sharedTags.length > 0) { score += sharedTags.length * 5; reasons.push(`같은 태그 ${sharedTags.slice(0, 3).map(t => `#${t}`).join(', ')}`); }
-    if (candidate.folder && candidate.folder === current.folder) { score += 3; reasons.push('같은 폴더'); }
-    const sharedH = candidate.headings.filter(h => current.headings.includes(h));
-    if (sharedH.length > 0) { score += Math.min(sharedH.length * 2, 6); reasons.push('비슷한 소제목'); }
-    const tm = this.scoreTerms(current, candidate, stats);
-    if (tm.score > 0) { score += tm.score; reasons.push(`핵심어 ${tm.terms.slice(0, 4).join(', ')}`); }
-    const ageDays = Math.max(0, (Date.now() - candidate.mtime) / 86400000);
-    if (ageDays < 14) { score += 1; reasons.push('최근 수정됨'); }
-    return { path: candidate.path, title: candidate.title, score, reasons: reasons.slice(0, 4) };
-  }
-
-  scoreTerms(current, candidate, stats) {
-    const ct = current.terms || {}, cdt = candidate.terms || {};
-    const matches = [];
-    const cLen = Math.max(candidate.length || 1, 1);
-    const k1 = 1.2, b = 0.75;
-    for (const term of Object.keys(ct)) {
-      const tf = cdt[term] || 0;
-      if (tf <= 0) continue;
-      const df = stats.documentFrequency.get(term) || 1;
-      const idf = Math.log(1 + (stats.docCount - df + 0.5) / (df + 0.5));
-      if (idf < 0.25) continue;
-      const bm25 = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (cLen / stats.avgLength))));
-      matches.push({ term, score: bm25 * Math.min(Math.sqrt(ct[term]), 4) });
-    }
-    matches.sort((a, b) => b.score - a.score);
-    return { score: Math.min(matches.reduce((s, m) => s + m.score, 0), 12), terms: matches.slice(0, 6).map(m => m.term) };
-  }
-}
 
 // ── Obsidian CLI 헬퍼 (obsidian-skill 기반) ────────────────
 class ObsidianCLI {
@@ -231,8 +68,6 @@ class ObsidianCLI {
     const fullContent = front + content;
     const p = folder ? `${folder}/${name}.md` : `${name}.md`;
 
-    // content를 CLI 인자로 넘기면 특수문자(쉼표 등)에서 JSON 파싱 오류 발생
-    // 대신 vault 파일시스템에 직접 쓴 뒤 CLI로 open만 호출
     if (vaultPath) {
       const fs = require('fs');
       const path = require('path');
@@ -244,7 +79,6 @@ class ObsidianCLI {
       return true;
     }
 
-    // vaultPath 없으면 content를 줄바꿈만 이스케이프해서 전달 (짧은 내용용 폴백)
     const escaped = fullContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
     return (await this.run(`create path="${p}" content="${escaped}" overwrite`)) !== null;
   }
@@ -289,9 +123,6 @@ class ClaudeObsidianView extends ItemView {
     this.messages = [];
     this.isLoading = false;
     this.cliAvailable = false;
-    this.memoryMap = new MemoryMapService(plugin.app);
-    this.relatedNotes = [];
-    this.isMemoryMapExpanded = true;
     this.slashDropdownEl = null;
     this.selectedSlashIndex = 0;
   }
@@ -350,10 +181,6 @@ class ClaudeObsidianView extends ItemView {
     modelSelect.onchange = async () => { this.plugin.settings.model = modelSelect.value; await this.plugin.saveSettings(); };
     thinkSelect.onchange = async () => { this.plugin.settings.thinkingMode = thinkSelect.value; await this.plugin.saveSettings(); };
 
-    // Memory Map 패널
-    this.memoryMapEl = root.createDiv('claude-memory-map-panel');
-    this.renderMemoryMapPanel();
-
     // 컨텍스트 바
     this.contextBar = root.createDiv('claude-context-bar');
     this.pinnedBar = root.createDiv('claude-pinned-bar');
@@ -404,11 +231,42 @@ class ClaudeObsidianView extends ItemView {
       cls: 'claude-input',
       attr: { placeholder: 'Claude에게 메시지를 입력하세요... (Enter 전송 / Shift+Enter 줄바꿈)\n/ 를 입력하면 커맨드 메뉴가 열립니다', rows: '1' }
     });
+
+    // 노트 컨텍스트 토글 버튼
+    this.contextToggleBtn = inputRow.createEl('button', {
+      cls: 'claude-context-toggle-btn',
+      attr: { title: '노트 컨텍스트 켜기/끄기' }
+    });
+    this.contextToggleBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px 6px;font-size:16px;opacity:0.7;transition:opacity 0.15s;flex-shrink:0;';
+    this.updateContextToggleBtn();
+    this.contextToggleBtn.onclick = async () => {
+      this.plugin.settings.includeCurrentNote = !this.plugin.settings.includeCurrentNote;
+      await this.plugin.saveSettings();
+      this.updateContextToggleBtn();
+      this.updateContextBar();
+    };
+
+    // 웹 검색 토글 버튼
+    this.webSearchBtn = inputRow.createEl('button', { attr: { title: '웹 검색 켜기/끄기' } });
+    this.webSearchBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px 6px;font-size:16px;flex-shrink:0;transition:opacity 0.15s;';
+    this.updateWebSearchBtn();
+    this.webSearchBtn.onclick = async () => {
+      this.plugin.settings.webSearch = !this.plugin.settings.webSearch;
+      await this.plugin.saveSettings();
+      this.updateWebSearchBtn();
+      new Notice(this.plugin.settings.webSearch ? '🌐 웹 검색 켜짐' : '🌐 웹 검색 꺼짐');
+    };
+
     this.sendBtn = inputRow.createEl('button', { cls: 'claude-send-btn', text: '➤' });
-    inputArea.createDiv({ cls: 'claude-hint', text: 'Enter: 전송  |  Shift+Enter: 줄바꿈  |  /: 커맨드 메뉴' });
+    inputArea.createDiv({ cls: 'claude-hint', text: 'Enter: 전송  |  Shift+Enter: 줄바꿈  |  /: 커맨드  |  📄: 노트컨텍스트  |  🌐: 웹검색  |  Esc: 중단' });
 
     this.inputEl.addEventListener('keydown', e => {
       if (this.handleSlashKeydown(e)) return;
+      if (e.key === 'Escape' && this.isLoading) {
+        e.preventDefault();
+        this.stopGeneration();
+        return;
+      }
       if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) {
         e.preventDefault();
         const s = this.inputEl.selectionStart, end = this.inputEl.selectionEnd, v = this.inputEl.value;
@@ -433,86 +291,6 @@ class ClaudeObsidianView extends ItemView {
     this.sendBtn.onclick = () => this.handleSend();
 
     if (this.messages.length === 0) this.showEmpty();
-
-    this.registerEvent(this.app.workspace.on('file-open', () => {
-      this.relatedNotes = [];
-      this.renderMemoryMapPanel();
-    }));
-  }
-
-  // ── Memory Map ─────────────────────────────────────────────
-  async renderMemoryMapPanel() {
-    if (!this.memoryMapEl) return;
-    this.memoryMapEl.empty();
-    const status = await this.memoryMap.getStatus();
-    this.memoryMapEl.toggleClass('is-collapsed', !this.isMemoryMapExpanded);
-
-    const header = this.memoryMapEl.createDiv({ cls: 'claude-memory-map-header' });
-
-    // 토글 화살표 — 클릭 시 접기/펼치기
-    const toggleBtn = header.createSpan({ cls: 'claude-memory-map-toggle' });
-    toggleBtn.textContent = this.isMemoryMapExpanded ? '▼' : '▶';
-    toggleBtn.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
-
-    // 아이콘 + 제목 (클릭 시 접기/펼치기)
-    const titleSpan = header.createSpan({ cls: 'claude-memory-map-title' });
-    titleSpan.textContent = `🗺️ ${status.built ? `Memory Map · ${status.count}개 노트` : 'Memory Map (미구축)'}`;
-    titleSpan.onclick = async () => { this.isMemoryMapExpanded = !this.isMemoryMapExpanded; await this.renderMemoryMapPanel(); };
-
-    // 버튼들 — 제목 오른쪽에 나란히
-    if (this.relatedNotes.length > 0) {
-      const clearBtn = header.createEl('button', { cls: 'claude-memory-btn', text: '지우기' });
-      clearBtn.onclick = async () => { this.relatedNotes = []; await this.renderMemoryMapPanel(); };
-    }
-    const buildBtn = header.createEl('button', { cls: 'claude-memory-btn', text: status.built ? '재구축' : '구축하기' });
-    buildBtn.onclick = async () => {
-      buildBtn.textContent = '구축 중...';
-      await this.memoryMap.build();
-      await this.renderMemoryMapPanel();
-      new Notice('Memory Map 구축 완료!');
-    };
-    const findBtn = header.createEl('button', { cls: 'claude-memory-btn', text: '관련 노트 찾기' });
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) findBtn.disabled = true;
-    findBtn.onclick = async () => {
-      const file = this.app.workspace.getActiveFile();
-      if (!file) { new Notice('노트를 먼저 열어주세요.'); return; }
-      findBtn.textContent = '검색 중...';
-      this.relatedNotes = await this.memoryMap.findRelated(file);
-      this.isMemoryMapExpanded = true;
-      await this.renderMemoryMapPanel();
-    };
-
-    if (!this.isMemoryMapExpanded) return;
-
-    if (this.relatedNotes.length === 0) {
-      const hint = this.memoryMapEl.createDiv({ cls: 'claude-memory-hint' });
-      hint.style.cssText = 'font-size:11px;color:var(--text-muted);padding:6px 10px;';
-      hint.textContent = status.built ? '노트를 열고 "관련 노트 찾기"를 눌러보세요.' : '"구축하기"를 눌러 Memory Map을 만드세요.';
-      return;
-    }
-
-    const list = this.memoryMapEl.createDiv({ cls: 'claude-memory-results' });
-    for (const result of this.relatedNotes) {
-      const chip = list.createDiv({ cls: 'claude-memory-chip' });
-      chip.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:6px;background:var(--background-secondary);margin-bottom:3px;cursor:pointer;font-size:12px;';
-      const info = chip.createDiv();
-      info.style.cssText = 'flex:1;min-width:0;';
-      info.createEl('span', { text: result.title, cls: 'claude-memory-chip-name' }).style.cssText = 'font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      if (result.reasons[0]) info.createEl('span', { text: result.reasons[0] }).style.cssText = 'font-size:10px;color:var(--text-muted);';
-      const addBtn = chip.createEl('button', { text: '📌', attr: { title: '핀 추가' } });
-      addBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:2px 4px;font-size:13px;';
-      addBtn.onclick = async (e) => {
-        e.stopPropagation();
-        await this.plugin.pinNote(result.path);
-        this.updateContextBar();
-        new Notice(`📌 "${result.title}" 핀 추가됨`);
-      };
-      chip.onclick = async () => {
-        const f = this.app.vault.getAbstractFileByPath(result.path);
-        if (f) await this.app.workspace.getLeaf(false).openFile(f);
-      };
-    }
   }
 
   // ── 슬래시 커맨드 ──────────────────────────────────────────
@@ -600,6 +378,22 @@ class ClaudeObsidianView extends ItemView {
     el.createEl('p', { text: '/ 를 입력하면 커맨드 메뉴가 열립니다', cls: 'claude-welcome-hint' }).style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:4px;';
   }
 
+  updateContextToggleBtn() {
+    if (!this.contextToggleBtn) return;
+    const on = this.plugin.settings.includeCurrentNote;
+    this.contextToggleBtn.textContent = '📄';
+    this.contextToggleBtn.style.opacity = on ? '1' : '0.35';
+    this.contextToggleBtn.title = on ? '노트 컨텍스트 켜짐 (클릭하면 끔)' : '노트 컨텍스트 꺼짐 (클릭하면 켬)';
+  }
+
+  updateWebSearchBtn() {
+    if (!this.webSearchBtn) return;
+    const on = this.plugin.settings.webSearch;
+    this.webSearchBtn.textContent = '🌐';
+    this.webSearchBtn.style.opacity = on ? '1' : '0.35';
+    this.webSearchBtn.title = on ? '웹 검색 켜짐 (클릭하면 끔)' : '웹 검색 꺼짐 (클릭하면 켬)';
+  }
+
   updateContextInfo() {
     if (!this.contextInfoEl) return;
     const totalChars = this.messages.reduce((sum, m) => sum + m.content.length, 0);
@@ -648,26 +442,53 @@ class ClaudeObsidianView extends ItemView {
     }).open();
   }
 
+  // ── 메시지 렌더링 (중단 뱃지 + 재생성 + 편집 포함) ─────────
   renderMessages() {
     if (!this.messagesEl) return;
     this.messagesEl.empty();
     if (this.messages.length === 0) { this.showEmpty(); return; }
 
-    this.messages.forEach(msg => {
+    this.messages.forEach((msg, idx) => {
       const el = this.messagesEl.createDiv(`claude-message ${msg.role}`);
-      const bubble = el.createDiv('claude-message-bubble');
+      const bubbleWrap = el.createDiv({ cls: 'claude-bubble-wrap' });
+
+      // 중단 뱃지 (aborted 메시지에만)
+      if (msg.aborted) {
+        const badge = bubbleWrap.createEl('span', { text: '[중단됨]', cls: 'claude-aborted-badge' });
+        badge.style.cssText = 'font-size:10px;color:var(--text-muted);background:var(--background-modifier-border);padding:1px 5px;border-radius:4px;margin-right:6px;vertical-align:middle;';
+      }
+
+      const bubble = bubbleWrap.createDiv('claude-message-bubble');
+      if (msg.aborted) bubble.style.opacity = '0.6';
+
       bubble.innerHTML = msg.content
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/`(.*?)`/g, '<code>$1</code>')
         .replace(/\n/g, '<br>');
+
       el.createDiv({ cls: 'claude-message-time', text: msg.time || '' });
+
+      const acts = el.createDiv('claude-message-actions');
+
       if (msg.role === 'assistant') {
-        const acts = el.createDiv('claude-message-actions');
+        // 복사 버튼
         const copy = acts.createEl('button', { text: '📋 복사', cls: 'claude-msg-btn' });
         copy.onclick = () => { navigator.clipboard.writeText(msg.content); new Notice('복사됐습니다.'); };
+
+        // 노트 저장 버튼
         const save = acts.createEl('button', { text: '💾 노트 저장', cls: 'claude-msg-btn' });
         save.onclick = () => this.saveAsNote(msg.content);
+
+        // 재생성 버튼 (중단된 메시지 포함 모든 assistant 메시지에)
+        const regen = acts.createEl('button', { text: '🔄 재생성', cls: 'claude-msg-btn' });
+        regen.onclick = () => this.regenerateMessage(idx);
+      }
+
+      if (msg.role === 'user') {
+        // 편집 버튼
+        const edit = acts.createEl('button', { text: '✏️ 편집', cls: 'claude-msg-btn' });
+        edit.onclick = () => this.editMessage(idx, msg.content);
       }
     });
 
@@ -677,6 +498,61 @@ class ClaudeObsidianView extends ItemView {
     }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     this.updateContextInfo();
+  }
+
+  // ── 재생성: 해당 assistant 메시지 제거 후 직전 user로 재전송 ──
+  regenerateMessage(idx) {
+    if (this.isLoading) return;
+    // idx번 assistant 메시지 제거
+    this.messages.splice(idx, 1);
+    // 직전 user 메시지 찾기
+    const lastUser = [...this.messages].reverse().find(m => m.role === 'user');
+    if (lastUser) {
+      this.sendMessage(lastUser.content, true);
+    }
+  }
+
+  // ── 편집: 해당 user 메시지 이후 전체 삭제 후 입력창에 로드 ──
+  editMessage(idx, content) {
+    if (this.isLoading) return;
+    // idx 이후 메시지 전체 삭제
+    this.messages.splice(idx);
+    this.renderMessages();
+    // 입력창에 내용 로드
+    if (this.inputEl) {
+      this.inputEl.value = content;
+      this.inputEl.style.height = 'auto';
+      this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, 120) + 'px';
+      this.inputEl.focus();
+    }
+  }
+
+  // ── 히스토리 길이 자동 관리 (토큰 초과 방지) ──────────────
+  trimHistory() {
+    const maxTokens = this.plugin.settings.maxTokens || 8192;
+    const threshold = maxTokens * 0.5 * 4; // 50% 기준, 토큰→문자 변환(×4)
+    const totalChars = this.messages.reduce((sum, m) => sum + m.content.length, 0);
+    if (totalChars <= threshold) return;
+
+    // user 메시지 최소 3개 유지하며 앞에서부터 제거
+    let removed = 0;
+    while (this.messages.length > 6) { // 최소 3쌍(user+assistant) 유지
+      const chars = this.messages.reduce((sum, m) => sum + m.content.length, 0);
+      if (chars <= threshold) break;
+      this.messages.shift();
+      removed++;
+    }
+
+    if (removed > 0) {
+      // 상단에 안내 메시지 표시 (messages 배열 앞에 시스템 안내 삽입하지 않고 UI에만 표시)
+      const notice = this.messagesEl?.querySelector('.claude-history-notice');
+      if (!notice && this.messagesEl) {
+        const n = this.messagesEl.createDiv({ cls: 'claude-history-notice' });
+        n.style.cssText = 'font-size:11px;color:var(--text-muted);text-align:center;padding:6px;border-radius:6px;background:var(--background-modifier-border);margin-bottom:8px;';
+        n.textContent = '이전 대화 일부가 요약됐습니다 (컨텍스트 한도 초과)';
+        this.messagesEl.prepend(n);
+      }
+    }
   }
 
   async handleSend() {
@@ -690,12 +566,18 @@ class ClaudeObsidianView extends ItemView {
 
   quickSend(text) { this.sendMessage(text); }
 
-  async sendMessage(userText) {
+  // isRegenerate: true면 user 메시지를 messages에 다시 추가하지 않음
+  async sendMessage(userText, isRegenerate = false) {
     if (!this.plugin.settings.apiKey) { new Notice('⚠️ 설정에서 Claude API 키를 먼저 입력해주세요!'); return; }
     const now = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    this.messages.push({ role: 'user', content: userText, time: now });
+
+    if (!isRegenerate) {
+      this.messages.push({ role: 'user', content: userText, time: now });
+    }
+
     this.isLoading = true;
     this.sendBtn.disabled = true;
+    this.abortController = new AbortController();
     this.renderMessages();
     this.updateContextBar();
 
@@ -705,24 +587,71 @@ class ClaudeObsidianView extends ItemView {
     this.appendTimelineStep(timelineList, '컨텍스트 수집 중...');
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
 
+    // 스트리밍 응답을 표시할 버블
+    let streamEl = null;
+    let streamBubble = null;
+    let partialReply = '';
+
     try {
       const context = await this.buildContext();
       this.appendTimelineStep(timelineList, 'Claude API 호출 중...');
-      const reply = await this.callClaude(userText, context);
-      this.appendTimelineStep(timelineList, '응답 완료');
       timelineEl.remove();
 
+      streamEl = this.messagesEl.createDiv('claude-message assistant');
+      streamBubble = streamEl.createDiv('claude-message-bubble');
+      this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+
+      const reply = await this.callClaude(userText, context, (partial) => {
+        partialReply = partial;
+        if (this.abortController?.signal.aborted) return;
+        if (streamBubble) {
+          streamBubble.innerHTML = partial
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+          this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+        }
+      });
+
+      if (streamEl) streamEl.remove();
       const t = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
       this.messages.push({ role: 'assistant', content: reply, time: t });
       if (this.plugin.settings.autoSave && this.isNoteRequest(userText)) await this.saveAsNote(reply);
+
     } catch (e) {
-      timelineEl.remove();
-      this.messages.push({ role: 'assistant', content: `오류: ${e.message}`, time: now });
-      new Notice(`Claude 오류: ${e.message}`);
+      if (timelineEl.parentNode) timelineEl.remove();
+      if (streamEl && streamEl.parentNode) streamEl.remove();
+
+      if (e.name === 'AbortError') {
+        const t = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        if (partialReply && partialReply.trim()) {
+          // 부분 텍스트 보존 + aborted 마킹
+          this.messages.push({
+            role: 'assistant',
+            content: partialReply,
+            aborted: true,
+            time: t
+          });
+        } else {
+          this.messages.push({ role: 'assistant', content: '⏹ 생성이 중지됐습니다.', aborted: true, time: t });
+        }
+      } else {
+        this.messages.push({ role: 'assistant', content: `오류: ${e.message}`, time: now });
+        new Notice(`Claude 오류: ${e.message}`);
+      }
     } finally {
       this.isLoading = false;
       this.sendBtn.disabled = false;
+      this.abortController = null;
+      this.trimHistory();
       this.renderMessages();
+    }
+  }
+
+  stopGeneration() {
+    if (this.abortController) {
+      this.abortController.abort();
     }
   }
 
@@ -754,32 +683,82 @@ class ClaudeObsidianView extends ItemView {
     return ['노트로 저장', '저장해줘', '파일로 만들어', '문서로 만들어', '기획서로', '회의록으로', '정리해서 저장'].some(k => text.includes(k));
   }
 
-  async callClaude(userMessage, context) {
-    const { apiKey, model, maxTokens, thinkingMode } = this.plugin.settings;
+  // ── API 호출: 히스토리 전달 시 aborted 메시지 필터링 ────────
+  async callClaude(userMessage, context, onChunk) {
+    const { apiKey, model, maxTokens, thinkingMode, systemPrompt: userSystemPrompt, webSearch } = this.plugin.settings;
     const url = 'https://api.anthropic.com/v1/messages';
-    const systemPrompt = `당신은 Obsidian 노트 전문 AI 어시스턴트입니다.
-## 핵심 원칙
-- 노트 분석 시 **핵심 개념, 구조, 통찰, 개선점**을 구체적이고 상세하게 제공합니다.
-- 단순 요약이 아닌 깊이 있는 분석을 수행합니다. 표, 목록, 섹션을 적극 활용하세요.
-- 기획서, 회의록 등은 옵시디언 마크다운 형식으로 작성합니다.
-- 노트 저장 시 반드시 YAML 프론트매터를 포함하세요.
-- 한국어로 답변합니다.${context ? `\n\n## 컨텍스트\n${context}` : ''}`;
-    const history = this.messages.slice(0, -1).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }));
+
+    // 최적화된 기본 시스템 프롬프트
+    const defaultSystem = `당신은 Obsidian 노트 전문 AI 어시스턴트입니다.
+
+## 역할
+- 사용자의 노트를 분석, 요약, 변환, 생성하는 작업을 수행합니다.
+- 파일 생성 요청 시 [중단됨] 또는 불완전한 응답 내용은 포함하지 않습니다.
+- 대화 맥락에서 사용자가 원하는 내용만 추려서 최적의 결과물을 만듭니다.
+
+## 출력 형식
+- Obsidian 마크다운 형식 사용 (YAML 프론트매터 포함)
+- 표, 목록, 섹션 제목 적극 활용
+- 한국어로 답변
+
+## 파일 생성 원칙
+- "파일 만들어줘", "노트로 저장해줘" 요청 시
+  → 대화 전체에서 유효한 내용만 추려서 구조화
+  → 중단된 응답, 오류 메시지, 시스템 안내는 포함하지 않음`;
+
+    const baseSystem = (userSystemPrompt && userSystemPrompt.trim()) ? userSystemPrompt.trim() : defaultSystem;
+    const systemPrompt = context ? `${baseSystem}\n\n## 컨텍스트\n${context}` : baseSystem;
+
+    // 히스토리 구성: aborted 메시지에 명시적 안내 추가
+    const history = this.messages.slice(0, -1)
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => {
+        if (m.aborted) {
+          return {
+            role: 'assistant',
+            content: m.content + '\n\n[이 응답은 사용자가 중단한 불완전한 응답입니다. 파일 생성 등 작업 시 이 내용을 포함하지 마세요.]'
+          };
+        }
+        return { role: m.role, content: m.content };
+      });
+
     const BUDGET_MAP = { low: 1024, medium: 8000, high: 16000, max: 32000 };
     const budgetTokens = BUDGET_MAP[thinkingMode] || 0;
     const useThinking = thinkingMode && thinkingMode !== 'none' && !model.includes('haiku');
     const effectiveMaxTokens = useThinking ? Math.max(maxTokens || 8192, budgetTokens + 1000) : (maxTokens || 8192);
-    const body = { model, max_tokens: effectiveMaxTokens, system: systemPrompt, messages: [...history, { role: 'user', content: userMessage }] };
+    const body = { model, max_tokens: effectiveMaxTokens, system: systemPrompt, stream: true, messages: [...history, { role: 'user', content: userMessage }] };
     if (useThinking) body.thinking = { type: 'enabled', budget_tokens: budgetTokens };
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify(body)
-    });
+    if (webSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+    const headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+    if (webSearch) headers['anthropic-beta'] = 'web-search-2025-03-05';
+
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: this.abortController?.signal });
     if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `API 오류 ${res.status}`); }
-    const data = await res.json();
-    const textBlock = data.content?.find(b => b.type === 'text');
-    return textBlock?.text || '응답을 받지 못했습니다.';
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+            fullText += parsed.delta.text;
+            if (onChunk) onChunk(fullText);
+          }
+        } catch {}
+      }
+    }
+    return fullText || '응답을 받지 못했습니다.';
   }
 
   async saveAsNote(content) {
@@ -839,8 +818,17 @@ class ClaudeObsidianSettings extends PluginSettingTab {
       .addText(t => t.setPlaceholder('AI/Claude').setValue(this.plugin.settings.saveFolder).onChange(async v => { this.plugin.settings.saveFolder = v || 'AI/Claude'; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName('작성자 이름').setDesc('노트 프론트매터 author 필드 (예: 홍길동)')
       .addText(t => t.setPlaceholder('홍길동').setValue(this.plugin.settings.knotAuthor).onChange(async v => { this.plugin.settings.knotAuthor = v; await this.plugin.saveSettings(); }));
-    new Setting(containerEl).setName('현재 노트 컨텍스트').setDesc('열린 노트를 Claude에 자동 전달')
+    new Setting(containerEl).setName('현재 노트 컨텍스트').setDesc('열린 노트를 Claude에 자동 전달 (대화창 📄 버튼으로도 토글 가능)')
       .addToggle(t => t.setValue(this.plugin.settings.includeCurrentNote).onChange(async v => { this.plugin.settings.includeCurrentNote = v; await this.plugin.saveSettings(); }));
+    containerEl.createEl('h3', { text: '시스템 프롬프트' });
+    containerEl.createEl('p', { text: '비워두면 Obsidian 노트 전문 AI 기본 프롬프트가 사용됩니다.', cls: 'setting-item-description' });
+    new Setting(containerEl).setName('시스템 프롬프트').setDesc('Claude에게 전달할 역할/지시 (자유롭게 편집)')
+      .addTextArea(t => {
+        t.setPlaceholder('비워두면 기본값 사용').setValue(this.plugin.settings.systemPrompt || '');
+        t.inputEl.rows = 6;
+        t.inputEl.style.width = '100%';
+        t.onChange(async v => { this.plugin.settings.systemPrompt = v; await this.plugin.saveSettings(); });
+      });
     new Setting(containerEl).setName('노트 자동 저장').setDesc('"저장해줘" 등 키워드 포함 시 자동 저장')
       .addToggle(t => t.setValue(this.plugin.settings.autoSave).onChange(async v => { this.plugin.settings.autoSave = v; await this.plugin.saveSettings(); }));
     containerEl.createEl('h3', { text: 'Obsidian CLI 연동 (obsidian-skill)' });
@@ -906,7 +894,6 @@ class ClaudeObsidianPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  // 핀 노트 영구 저장 (settings에 경로 보존)
   async pinNote(notePath) {
     const normalized = notePath.replace(/\\/g, '/');
     if (!Array.isArray(this.settings.pinnedNotePaths)) this.settings.pinnedNotePaths = [];
